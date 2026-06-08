@@ -1,7 +1,7 @@
 # asadjamalkhattak-AI-CHAT-HUB-MVC
-# *Developer:AsāD JāMāL KhAttāk*
-# *Instructor:ProFessoR MuhammāD KāZiM*
-# *Program:Bs ArtiFicāL IntelliGence(2nD Semester)*
+# **Developer:AsāD JāMāL KhAttāk**
+# **Instructor:ProFessoR MuhammāD KāZiM**
+# **Program:Bs ArtiFicāL IntelliGence (2nD Semester)**
 <img width="1918" height="870" alt="image" src="https://github.com/user-attachments/assets/0f592e25-03da-4b46-89a8-7e113894b6e1" />
  
 # AI Chat Hub 🤖
@@ -136,16 +136,8 @@ dotnet restore
 
 4. **Build the Project**
 ```bash
-dotnet build
+**asad jamal khattak**
 ```
-
-5. **Run the Application**
-```bash
-dotnet run
-```
-
-6. **Access the App**
-Open your browser and navigate to `http://localhost:5292`
 
 ### 📖 Usage
 
