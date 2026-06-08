@@ -1,0 +1,75 @@
+Classes in code: 
+public class HomeController : Controller
+
+Other classes used:
+ChatData
+Message
+ChatViewModel
+ErrorViewModel
+OpenAIClient
+HttpClient
+
+Objects:
+1: var chatClient = _openaiClient.GetChatClient("gpt-4o-mini");
+2: new ChatData()
+
+Encapsulation:
+private readonly OpenAIClient _openaiClient;
+private readonly string? _hfToken;
+private static Dictionary<string, ChatData> _chats = new();
+private static readonly object _lock = new();
+
+Inheritance:
+public class HomeController : Controller
+View()
+Json()
+HttpContext
+Request
+Response
+
+Polymorphism:
+1:public IActionResult Index()
+2:public IActionResult ClearHistory()
+3:public IActionResult Error()
+
+(ChatMessage)new UserChatMessage(...)
+(ChatMessage)new AssistantChatMessage(...)
+This is also polymorphism.
+
+Exception Handling:
+try
+{
+    ...
+}
+catch (Exception ex)
+{
+    return Json(new
+    {
+        success = false,
+        error = $"Server Error: {ex.Message}"
+    });
+}
+
+File Handling:
+var configJson =
+    System.IO.File.ReadAllText(configPath);
+1:Reads:
+apiconfig.json
+
+2:Checking file existence
+if (System.IO.File.Exists(_chatStorePath))
+
+3:Reading chat history
+var json =
+    System.IO.File.ReadAllText(_chatStorePath);
+
+4:Writing chat history
+System.IO.File.WriteAllText(
+    _chatStorePath,
+    JsonSerializer.Serialize(list, options)
+);
+
+Files involved:
+apiconfig.json
+chats.json
+This demonstrates file handling through reading, writing, and existence checking.
