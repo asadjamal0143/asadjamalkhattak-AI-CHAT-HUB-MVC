@@ -1,0 +1,445 @@
+// ==================== Model.h ====================
+#ifndef MODEL_H
+#define MODEL_H
+
+#include <iostream>
+#include <vector>
+#include <map>
+#include <fstream>
+#include <sstream>
+#include <ctime>
+#include <algorithm>
+
+// Base class with polymorphism
+class ResponseGenerator {
+protected:
+    std::string name;
+public:
+    ResponseGenerator(const std::string& n) : name(n) {}
+    virtual ~ResponseGenerator() {}
+    virtual std::string generateResponse(const std::string& input) = 0;
+    virtual std::string getName() const { return name; }
+};
+
+// Derived class - Rule-based responder
+class RuleResponder : public ResponseGenerator {
+private:
+    std::map<std::string, std::vector<std::string>> keywords;
+    void initializeKeywords();
+    
+public:
+    RuleResponder() : ResponseGenerator("RuleResponder") { initializeKeywords(); }
+    std::string generateResponse(const std::string& input) override;
+};
+
+// Derived class - Simple AI responder
+class AIResponder : public ResponseGenerator {
+private:
+    std::vector<std::string> responses;
+    void initializeResponses();
+    
+public:
+    AIResponder() : ResponseGenerator("AIResponder") { initializeResponses(); }
+    std::string generateResponse(const std::string& input) override;
+};
+
+// Chat history class (Encapsulation)
+class ChatHistory {
+private:
+    struct Message {
+        std::string sender;
+        std::string content;
+        time_t timestamp;
+    };
+    
+    std::vector<Message> messages;
+    const size_t MAX_HISTORY = 100;
+    
+public:
+    void addMessage(const std::string& sender, const std::string& content);
+    std::vector<std::string> getLastNMessages(int n);
+    void saveToFile(const std::string& filename);
+    void loadFromFile(const std::string& filename);
+    void displayHistory() const;
+    
+    // Operator overloading
+    friend std::ostream& operator<<(std::ostream& os, const ChatHistory& history);
+    std::string operator[](int index) const;
+};
+
+// Main Model class
+class ChatBotModel {
+private:
+    RuleResponder ruleResponder;
+    AIResponder aiResponder;
+    ChatHistory history;
+    ResponseGenerator* currentResponder;
+    std::string botName;
+    
+public:
+    ChatBotModel(const std::string& name);
+    ~ChatBotModel();
+    
+    std::string getResponse(const std::string& userInput);
+    void switchResponder(bool useAI);
+    void saveChat(const std::string& filename);
+    void loadChat(const std::string& filename);
+    void showHistory() const;
+    std::string getBotName() const { return botName; }
+};
+
+#endif
+
+// ==================== Model.cpp ====================
+#include "Model.h"
+#include <random>
+#include <chrono>
+
+void RuleResponder::initializeKeywords() {
+    keywords["hello"] = {"Hi there!", "Hello!", "Hey! How can I help?"};
+    keywords["how are you"] = {"I'm doing great!", "Feeling awesome!", "Ready to chat!"};
+    keywords["bye"] = {"Goodbye!", "See you later!", "Take care!"};
+    keywords["name"] = {"I'm your AI assistant!", "You can call me ChatBot", "I'm your helpful companion"};
+    keywords["weather"] = {"I can't check weather yet, but it's sunny in my virtual world!", "Weather? I'm a bot, not a meteorologist!"};
+    keywords["help"] = {"I can chat with you! Try asking about my name, or just say hello!", "Type anything and I'll respond!"};
+}
+
+std::string RuleResponder::generateResponse(const std::string& input) {
+    std::string lowerInput = input;
+    std::transform(lowerInput.begin(), lowerInput.end(), lowerInput.begin(), ::tolower);
+    
+    for (auto& pair : keywords) {
+        if (lowerInput.find(pair.first) != std::string::npos) {
+            auto& responses = pair.second;
+            static std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count());
+            std::uniform_int_distribution<int> dist(0, responses.size() - 1);
+            return responses[dist(rng)];
+        }
+    }
+    return "Interesting! Tell me more about that.";
+}
+
+void AIResponder::initializeResponses() {
+    responses = {
+        "That's fascinating! Can you elaborate?",
+        "I see. What makes you think that?",
+        "Really? Tell me more!",
+        "Hmm, that's an interesting perspective.",
+        "I understand. How does that make you feel?",
+        "Great point! What else is on your mind?",
+        "Thanks for sharing that with me.",
+        "I'm learning from our conversation!"
+    };
+}
+
+std::string AIResponder::generateResponse(const std::string& input) {
+    static std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count());
+    std::uniform_int_distribution<int> dist(0, responses.size() - 1);
+    return responses[dist(rng)] + " (AI Mode)";
+}
+
+void ChatHistory::addMessage(const std::string& sender, const std::string& content) {
+    if (messages.size() >= MAX_HISTORY) {
+        messages.erase(messages.begin());
+    }
+    Message msg{sender, content, std::time(nullptr)};
+    messages.push_back(msg);
+}
+
+std::vector<std::string> ChatHistory::getLastNMessages(int n) {
+    std::vector<std::string> lastMessages;
+    int start = std::max(0, static_cast<int>(messages.size()) - n);
+    for (int i = start; i < messages.size(); i++) {
+        lastMessages.push_back(messages[i].sender + ": " + messages[i].content);
+    }
+    return lastMessages;
+}
+
+void ChatHistory::saveToFile(const std::string& filename) {
+    std::ofstream file(filename);
+    if (!file.is_open()) {
+        throw std::runtime_error("Cannot open file for saving: " + filename);
+    }
+    
+    for (const auto& msg : messages) {
+        file << msg.sender << "|" << msg.content << "|" << msg.timestamp << "\n";
+    }
+    file.close();
+}
+
+void ChatHistory::loadFromFile(const std::string& filename) {
+    std::ifstream file(filename);
+    if (!file.is_open()) {
+        throw std::runtime_error("Cannot open file for loading: " + filename);
+    }
+    
+    messages.clear();
+    std::string line;
+    while (std::getline(file, line)) {
+        std::stringstream ss(line);
+        std::string sender, content, timestampStr;
+        if (std::getline(ss, sender, '|') &&
+            std::getline(ss, content, '|') &&
+            std::getline(ss, timestampStr)) {
+            messages.push_back({sender, content, std::stol(timestampStr)});
+        }
+    }
+    file.close();
+}
+
+void ChatHistory::displayHistory() const {
+    std::cout << "\n=== Chat History ===\n";
+    for (const auto& msg : messages) {
+        std::cout << "[" << std::ctime(&msg.timestamp) << "] ";
+        std::cout << msg.sender << ": " << msg.content << "\n";
+    }
+}
+
+std::ostream& operator<<(std::ostream& os, const ChatHistory& history) {
+    for (const auto& msg : history.messages) {
+        os << msg.sender << ": " << msg.content << std::endl;
+    }
+    return os;
+}
+
+std::string ChatHistory::operator[](int index) const {
+    if (index >= 0 && index < static_cast<int>(messages.size())) {
+        return messages[index].sender + ": " + messages[index].content;
+    }
+    throw std::out_of_range("Chat history index out of range");
+}
+
+ChatBotModel::ChatBotModel(const std::string& name) : botName(name), currentResponder(&ruleResponder) {}
+
+ChatBotModel::~ChatBotModel() {}
+
+std::string ChatBotModel::getResponse(const std::string& userInput) {
+    history.addMessage("User", userInput);
+    std::string response = currentResponder->generateResponse(userInput);
+    history.addMessage(botName, response);
+    return response;
+}
+
+void ChatBotModel::switchResponder(bool useAI) {
+    currentResponder = useAI ? static_cast<ResponseGenerator*>(&aiResponder) : static_cast<ResponseGenerator*>(&ruleResponder);
+}
+
+void ChatBotModel::saveChat(const std::string& filename) {
+    try {
+        history.saveToFile(filename);
+    } catch (const std::exception& e) {
+        throw std::runtime_error(std::string("Save failed: ") + e.what());
+    }
+}
+
+void ChatBotModel::loadChat(const std::string& filename) {
+    try {
+        history.loadFromFile(filename);
+    } catch (const std::exception& e) {
+        throw std::runtime_error(std::string("Load failed: ") + e.what());
+    }
+}
+
+void ChatBotModel::showHistory() const {
+    history.displayHistory();
+}
+
+// ==================== View.h ====================
+#ifndef VIEW_H
+#define VIEW_H
+
+#include <iostream>
+#include <string>
+
+class ChatBotView {
+public:
+    void displayWelcome(const std::string& botName);
+    void displayResponse(const std::string& response);
+    void displayError(const std::string& error);
+    void displayMenu();
+    void displayHistory(const std::vector<std::string>& history);
+    std::string getUserInput();
+    int getMenuChoice();
+    void displayGoodbye();
+};
+
+#endif
+
+// ==================== View.cpp ====================
+#include "View.h"
+
+void ChatBotView::displayWelcome(const std::string& botName) {
+    std::cout << "\n=== Welcome to " << botName << " ===\n";
+    std::cout << "Your AI Chat Assistant\n";
+    std::cout << "========================\n\n";
+}
+
+void ChatBotView::displayResponse(const std::string& response) {
+    std::cout << "Bot: " << response << "\n\n";
+}
+
+void ChatBotView::displayError(const std::string& error) {
+    std::cerr << "Error: " << error << "\n\n";
+}
+
+void ChatBotView::displayMenu() {
+    std::cout << "\n--- Menu ---\n";
+    std::cout << "1. Chat mode\n";
+    std::cout << "2. Switch to Rule-based responder\n";
+    std::cout << "3. Switch to AI responder\n";
+    std::cout << "4. Show chat history\n";
+    std::cout << "5. Save chat to file\n";
+    std::cout << "6. Load chat from file\n";
+    std::cout << "7. Exit\n";
+    std::cout << "Choice: ";
+}
+
+std::string ChatBotView::getUserInput() {
+    std::cout << "You: ";
+    std::string input;
+    std::getline(std::cin, input);
+    return input;
+}
+
+int ChatBotView::getMenuChoice() {
+    int choice;
+    std::cin >> choice;
+    std::cin.ignore();
+    return choice;
+}
+
+void ChatBotView::displayHistory(const std::vector<std::string>& history) {
+    std::cout << "\n=== Chat History ===\n";
+    for (const auto& msg : history) {
+        std::cout << msg << "\n";
+    }
+    std::cout << "===================\n\n";
+}
+
+void ChatBotView::displayGoodbye() {
+    std::cout << "\nThank you for chatting! Goodbye!\n";
+}
+
+// ==================== Controller.h ====================
+#ifndef CONTROLLER_H
+#define CONTROLLER_H
+
+#include "Model.h"
+#include "View.h"
+
+class ChatBotController {
+private:
+    ChatBotModel model;
+    ChatBotView view;
+    bool running;
+    
+public:
+    ChatBotController();
+    void run();
+    
+private:
+    void processInput(const std::string& input);
+    void handleMenuChoice(int choice);
+    void chatMode();
+};
+
+#endif
+
+// ==================== Controller.cpp ====================
+#include "Controller.h"
+
+ChatBotController::ChatBotController() : model("SmartBot"), running(true) {}
+
+void ChatBotController::run() {
+    view.displayWelcome(model.getBotName());
+    
+    while (running) {
+        view.displayMenu();
+        int choice = view.getMenuChoice();
+        handleMenuChoice(choice);
+    }
+    
+    view.displayGoodbye();
+}
+
+void ChatBotController::handleMenuChoice(int choice) {
+    switch (choice) {
+        case 1:
+            chatMode();
+            break;
+        case 2:
+            model.switchResponder(false);
+            view.displayResponse("Switched to Rule-based responder");
+            break;
+        case 3:
+            model.switchResponder(true);
+            view.displayResponse("Switched to AI responder");
+            break;
+        case 4:
+            model.showHistory();
+            break;
+        case 5: {
+            std::cout << "Enter filename to save: ";
+            std::string filename;
+            std::getline(std::cin, filename);
+            try {
+                model.saveChat(filename);
+                view.displayResponse("Chat saved successfully!");
+            } catch (const std::exception& e) {
+                view.displayError(e.what());
+            }
+            break;
+        }
+        case 6: {
+            std::cout << "Enter filename to load: ";
+            std::string filename;
+            std::getline(std::cin, filename);
+            try {
+                model.loadChat(filename);
+                view.displayResponse("Chat loaded successfully!");
+            } catch (const std::exception& e) {
+                view.displayError(e.what());
+            }
+            break;
+        }
+        case 7:
+            running = false;
+            break;
+        default:
+            view.displayError("Invalid choice. Please try again.");
+    }
+}
+
+void ChatBotController::chatMode() {
+    view.displayResponse("Entering chat mode. Type 'exit' to return to menu.");
+    
+    while (true) {
+        std::string input = view.getUserInput();
+        
+        if (input == "exit" || input == "quit") {
+            break;
+        }
+        
+        try {
+            std::string response = model.getResponse(input);
+            view.displayResponse(response);
+        } catch (const std::exception& e) {
+            view.displayError(e.what());
+        }
+    }
+}
+
+// ==================== main.cpp ====================
+#include "Controller.h"
+
+int main() {
+    try {
+        ChatBotController controller;
+        controller.run();
+    } catch (const std::exception& e) {
+        std::cerr << "Fatal error: " << e.what() << std::endl;
+        return 1;
+    }
+    
+    return 0;
+}

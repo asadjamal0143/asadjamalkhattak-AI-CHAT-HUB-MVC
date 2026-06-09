@@ -1,0 +1,348 @@
+import json
+import os
+from datetime import datetime
+from abc import ABC, abstractmethod
+
+# ========== EXCEPTION HANDLING ==========
+class ChatBotException(Exception):
+    """Custom exception for chatbot errors"""
+    pass
+
+class InvalidMessageException(ChatBotException):
+    """Raised when message is invalid"""
+    pass
+
+class FileOperationException(ChatBotException):
+    """Raised when file operations fail"""
+    pass
+
+# ========== ENCAPSULATION ==========
+class Message:
+    """Message class with encapsulated attributes"""
+    def __init__(self, sender: str, content: str):
+        self.__sender = sender  # Private attribute
+        self.__content = content
+        self.__timestamp = datetime.now()
+    
+    # Getter methods (Encapsulation)
+    def get_sender(self):
+        return self.__sender
+    
+    def get_content(self):
+        return self.__content
+    
+    def get_timestamp(self):
+        return self.__timestamp
+    
+    # Setter with validation
+    def set_content(self, content):
+        if not content or len(content.strip()) == 0:
+            raise InvalidMessageException("Message content cannot be empty")
+        self.__content = content
+    
+    # ========== OPERATOR OVERLOADING ==========
+    def __eq__(self, other):
+        """Overload == operator to compare messages"""
+        if isinstance(other, Message):
+            return self.__content == other.__content
+        return False
+    
+    def __str__(self):
+        return f"[{self.__timestamp.strftime('%H:%M:%S')}] {self.__sender}: {self.__content}"
+    
+    def __len__(self):
+        return len(self.__content)
+
+# ========== INHERITANCE & POLYMORPHISM ==========
+class ResponseGenerator(ABC):
+    """Abstract base class for response generation"""
+    
+    @abstractmethod
+    def generate_response(self, message: str) -> str:
+        """Generate response based on message (Polymorphism)"""
+        pass
+
+class SimpleResponseGenerator(ResponseGenerator):
+    """Concrete implementation 1"""
+    
+    def generate_response(self, message: str) -> str:
+        message_lower = message.lower()
+        
+        if "hello" in message_lower or "hi" in message_lower:
+            return "Hello! How can I help you today?"
+        elif "how are you" in message_lower:
+            return "I'm doing great! Thanks for asking!"
+        elif "bye" in message_lower:
+            return "Goodbye! Have a great day!"
+        elif "help" in message_lower:
+            return "I can chat with you! Try saying 'hello', 'how are you', or 'bye'"
+        else:
+            return f"You said: '{message}'. That's interesting!"
+    
+    def __str__(self):
+        return "Simple Response Generator"
+
+class AdvancedResponseGenerator(ResponseGenerator):
+    """Concrete implementation 2 (Polymorphism)"""
+    
+    def __init__(self):
+        self.__knowledge_base = {
+            "python": "Python is a powerful programming language!",
+            "ai": "AI stands for Artificial Intelligence, simulating human intelligence.",
+            "chatbot": "A chatbot is a software application that conducts conversations.",
+            "weather": "I can't check weather, but it's always nice to chat!",
+            "name": "I'm your AI Chat Bot! Created with Python MVC pattern."
+        }
+    
+    def generate_response(self, message: str) -> str:
+        message_lower = message.lower()
+        
+        # Check knowledge base
+        for key, response in self.__knowledge_base.items():
+            if key in message_lower:
+                return response
+        
+        # Default responses
+        greetings = ["hello", "hi", "hey"]
+        if any(g in message_lower for g in greetings):
+            return "Welcome! What would you like to know?"
+        elif "bye" in message_lower:
+            return "Thanks for chatting! See you later!"
+        
+        return f"Interesting point! Tell me more about '{message[:30]}...'"
+    
+    def __str__(self):
+        return "Advanced Response Generator with Knowledge Base"
+
+# ========== MODEL (DATA & BUSINESS LOGIC) ==========
+class ChatModel:
+    """Model handles data and business logic"""
+    
+    def __init__(self):
+        self.__messages = []  # Encapsulation
+        self.__response_gen = SimpleResponseGenerator()  # Default generator
+        self.__data_file = "chat_history.json"
+        self.__load_history()
+    
+    def set_response_generator(self, generator_type: str):
+        """Change response generation strategy (Dynamic binding)"""
+        if generator_type.lower() == "simple":
+            self.__response_gen = SimpleResponseGenerator()
+        elif generator_type.lower() == "advanced":
+            self.__response_gen = AdvancedResponseGenerator()
+        else:
+            raise InvalidMessageException(f"Unknown generator type: {generator_type}")
+    
+    def send_message(self, user_message: str) -> str:
+        """Process user message and generate response"""
+        if not user_message or len(user_message.strip()) == 0:
+            raise InvalidMessageException("Message cannot be empty")
+        
+        # Create user message
+        user_msg = Message("User", user_message)
+        self.__messages.append(user_msg)
+        
+        # Generate AI response (Polymorphism)
+        ai_response_text = self.__response_gen.generate_response(user_message)
+        ai_msg = Message("AI Bot", ai_response_text)
+        self.__messages.append(ai_msg)
+        
+        # Save to file
+        self.__save_history()
+        
+        return ai_response_text
+    
+    def get_chat_history(self):
+        """Return all messages"""
+        return self.__messages.copy()  # Return copy for encapsulation
+    
+    def clear_history(self):
+        """Clear all messages"""
+        self.__messages.clear()
+        self.__save_history()
+    
+    # ========== FILE HANDLING ==========
+    def __save_history(self):
+        """Save chat history to file"""
+        try:
+            history_data = []
+            for msg in self.__messages:
+                history_data.append({
+                    "sender": msg.get_sender(),
+                    "content": msg.get_content(),
+                    "timestamp": msg.get_timestamp().isoformat()
+                })
+            
+            with open(self.__data_file, 'w') as f:
+                json.dump(history_data, f, indent=2)
+                
+        except IOError as e:
+            raise FileOperationException(f"Failed to save chat history: {e}")
+        except Exception as e:
+            raise ChatBotException(f"Unexpected error saving data: {e}")
+    
+    def __load_history(self):
+        """Load chat history from file"""
+        if not os.path.exists(self.__data_file):
+            return
+        
+        try:
+            with open(self.__data_file, 'r') as f:
+                history_data = json.load(f)
+                
+            self.__messages = []
+            for item in history_data:
+                msg = Message(item["sender"], item["content"])
+                # Note: timestamp restoration simplified for demo
+                self.__messages.append(msg)
+                
+        except json.JSONDecodeError as e:
+            print(f"Warning: Corrupted history file: {e}")
+        except IOError as e:
+            print(f"Warning: Could not load history: {e}")
+        except Exception as e:
+            print(f"Unexpected error loading history: {e}")
+
+# ========== VIEW (USER INTERFACE) ==========
+class ChatView:
+    """View handles user interface"""
+    
+    def display_message(self, message: Message):
+        """Display a single message"""
+        print(message)
+    
+    def display_history(self, messages: list):
+        """Display all messages"""
+        if not messages:
+            print("\n--- No messages yet ---")
+            return
+        
+        print("\n" + "="*50)
+        print("CHAT HISTORY")
+        print("="*50)
+        for msg in messages:
+            print(msg)
+        print("="*50 + "\n")
+    
+    def display_menu(self):
+        """Display main menu"""
+        print("\n" + "="*40)
+        print(" AI CHAT BOT MVC ")
+        print("="*40)
+        print("1. Send Message")
+        print("2. View Chat History")
+        print("3. Clear History")
+        print("4. Change AI Mode (Simple/Advanced)")
+        print("5. Exit")
+        print("="*40)
+    
+    def get_user_input(self, prompt: str) -> str:
+        """Get input from user with validation"""
+        return input(prompt).strip()
+
+# ========== CONTROLLER (ORCHESTRATES MODEL & VIEW) ==========
+class ChatController:
+    """Controller handles user input and coordinates Model/View"""
+    
+    def __init__(self):
+        self.model = ChatModel()
+        self.view = ChatView()
+    
+    def run(self):
+        """Main application loop"""
+        print("\n🤖 Welcome to AI Chat Bot MVC! 🤖")
+        print("Type 'help' anytime for commands\n")
+        
+        while True:
+            try:
+                self.view.display_menu()
+                choice = self.view.get_user_input("Enter your choice: ")
+                
+                if choice == "1":
+                    self.__handle_send_message()
+                elif choice == "2":
+                    self.__handle_view_history()
+                elif choice == "3":
+                    self.__handle_clear_history()
+                elif choice == "4":
+                    self.__handle_change_mode()
+                elif choice == "5":
+                    self.__handle_exit()
+                    break
+                else:
+                    print("❌ Invalid choice! Please enter 1-5")
+                    
+            except InvalidMessageException as e:
+                print(f"⚠️ Error: {e}")
+            except FileOperationException as e:
+                print(f"💾 File Error: {e}")
+            except ChatBotException as e:
+                print(f"🤖 Bot Error: {e}")
+            except KeyboardInterrupt:
+                print("\n\n👋 Goodbye!")
+                break
+            except Exception as e:
+                print(f"❌ Unexpected error: {e}")
+    
+    def __handle_send_message(self):
+        """Handle sending a message"""
+        user_input = self.view.get_user_input("\nYou: ")
+        
+        if user_input.lower() == "exit":
+            return
+        
+        # Generate and display response
+        response = self.model.send_message(user_input)
+        print(f"\n🤖 AI Bot: {response}\n")
+    
+    def __handle_view_history(self):
+        """Display chat history"""
+        history = self.model.get_chat_history()
+        self.view.display_history(history)
+    
+    def __handle_clear_history(self):
+        """Clear chat history"""
+        confirm = self.view.get_user_input("Are you sure? (y/n): ")
+        if confirm.lower() == 'y':
+            self.model.clear_history()
+            print("✅ Chat history cleared!\n")
+    
+    def __handle_change_mode(self):
+        """Change AI response mode"""
+        print("\nAvailable modes:")
+        print("1. Simple - Basic responses")
+        print("2. Advanced - Knowledge base responses")
+        
+        mode_choice = self.view.get_user_input("Choose mode (1/2): ")
+        
+        if mode_choice == "1":
+            self.model.set_response_generator("simple")
+            print("✅ Changed to Simple mode\n")
+        elif mode_choice == "2":
+            self.model.set_response_generator("advanced")
+            print("✅ Changed to Advanced mode\n")
+        else:
+            print("❌ Invalid mode choice\n")
+    
+    def __handle_exit(self):
+        """Exit the application"""
+        print("\n👋 Thanks for chatting! Saving data...")
+        # Model auto-saves, just display goodbye
+        print("Goodbye! 👋\n")
+
+# ========== MAIN APPLICATION ==========
+if __name__ == "__main__":
+    # Demonstrate operator overloading
+    print("=== DEMONSTRATING OPERATOR OVERLOADING ===")
+    msg1 = Message("Test", "Hello World")
+    msg2 = Message("Test", "Hello World")
+    msg3 = Message("Test", "Different message")
+    
+    print(f"msg1 == msg2: {msg1 == msg2}")  # True
+    print(f"msg1 == msg3: {msg1 == msg3}")  # False
+    print(f"Length of message: {len(msg1)} characters")  # 11
+    print()
+    
+    # Start the chatbot
+    controller = ChatController()
+    controller.run()
